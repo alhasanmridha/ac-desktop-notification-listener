@@ -26,10 +26,5 @@ namespace ac_notification_listener
         {
             this.InitializeComponent();
         }
-
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-
-        }
     }
 }

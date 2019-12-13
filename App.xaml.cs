@@ -34,6 +34,7 @@ namespace ac_notification_listener
         /// executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
         IReadOnlyList<UserNotification> notifs;
+        StorageFile notificationFile;
         public App()
         {
             this.InitializeComponent();
@@ -47,6 +48,73 @@ namespace ac_notification_listener
         /// <param name="e">Details about the launch request and process.</param>
         /// 
         
+        private async void SaveNotificationsToFile()
+        {
+            Int32 retryAttempts = 5;
+            const Int32 ERROR_ACCESS_DENIED = unchecked((Int32)0x80070005);
+            const Int32 ERROR_SHARING_VIOLATION = unchecked((Int32)0x80070020);
+
+            List<string> notificationsInText = new List<string>();
+            if (notifs != null && notifs.Count() != 0)
+            {
+                UserNotification userNotification = notifs.LastOrDefault();
+
+                string appDisplayName = userNotification.AppInfo.DisplayInfo.DisplayName;
+                var time = userNotification.CreationTime.DateTime;
+
+
+
+                //var t = userNotification.AppInfo.DisplayInfo.Description;
+                // Get the toast binding, if present
+                NotificationBinding toastBinding = userNotification.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
+                if (toastBinding != null && appDisplayName.Contains("Google Chrome"))
+                {
+
+                    IDictionary<string,string> dictionary = toastBinding.Hints;
+
+
+                    // And then get the text elements from the toast binding
+                    IReadOnlyList<AdaptiveNotificationText> textElements = toastBinding.GetTextElements();
+
+                    // Treat the first text element as the title text
+                    string titleText = textElements.FirstOrDefault()?.Text;
+
+                    // We'll treat all subsequent text elements as body text,
+                    // joining them together via newlines.
+                    string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
+                    notificationsInText.Add(time.ToString() + ": "+ bodyText);
+                    notificationsInText.Add("");
+                    notificationsInText.Add("");
+                    notificationsInText.Add("----------------------------------------------------------------");
+                    notificationsInText.Add("");
+                    notificationsInText.Add("");
+                }
+                if (notificationFile != null)
+                {
+                    // Application now has read/write access to the picked file.
+                    while (retryAttempts > 0)
+                    {
+                        try
+                        {
+                            retryAttempts--;
+                            await FileIO.AppendLinesAsync(notificationFile, notificationsInText);
+                            break;
+                        }
+                        catch (Exception ex) when ((ex.HResult == ERROR_ACCESS_DENIED) ||
+                                                   (ex.HResult == ERROR_SHARING_VIOLATION))
+                        {
+                            // This might be recovered by retrying, otherwise let the exception be raised.
+                            // The app can decide to wait before retrying.
+                        }
+                    }
+                }
+                else
+                {
+                    // The operation was cancelled in the picker dialog.
+                }
+            }
+        }
+
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
             Frame rootFrame = Window.Current.Content as Frame;
@@ -94,43 +162,6 @@ namespace ac_notification_listener
             
         }
 
-        private async void openFilePicker()
-        {
-
-            FileOpenPicker picker = new FileOpenPicker();
-            picker.FileTypeFilter.Add(".txt");
-            picker.SuggestedStartLocation = PickerLocationId.Desktop;
-
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
-            {
-                LaunchQuerySupportStatus status = await Launcher.QueryFileSupportAsync(file);
-
-                if (status == LaunchQuerySupportStatus.Available)
-                {
-                    bool didLaunch = await Launcher.LaunchFileAsync(file);
-                }
-                else
-                {
-                    MessageDialog dialog = new MessageDialog(
-                      $"Status value was {status}", "Unable to Launch");
-
-                    await dialog.ShowAsync();
-                }
-            }
-        }   
-        
-        private async void openFile(string fileToOpen)
-        {
-            var process = new Process();
-            process.StartInfo = new ProcessStartInfo()
-            {
-                UseShellExecute = true,
-                FileName = fileToOpen
-            };
-
-            process.Start();
-        }
         protected override void OnBackgroundActivated(BackgroundActivatedEventArgs args)
         {
             var deferral = args.TaskInstance.GetDeferral();
@@ -170,59 +201,52 @@ namespace ac_notification_listener
             //TODO: Save application state and stop any background activity
             deferral.Complete();
         }
-        public async void saveNotificationsToFile()
-        {
-            List<string> notificationsText = new List<string>();
-            // Create sample file; replace if exists.
-            StorageFolder storageFolder =
-                ApplicationData.Current.LocalFolder;
-            StorageFile sampleFile =
-                await storageFolder.CreateFileAsync("allNotifications.txt",
-                    CreationCollisionOption.OpenIfExists);
         
-            Debug.WriteLine(sampleFile.Path);
-            if (notifs != null && notifs.Count() != 0)
+        private async void SyncNotifications()
+        {
+            // Get the listener
+            UserNotificationListener listener = UserNotificationListener.Current;
+
+            // And request access to the user's notifications (must be called from UI thread)
+            UserNotificationListenerAccessStatus notificationListenerAccessStatus = await listener.RequestAccessAsync();
+            switch (notificationListenerAccessStatus)
             {
-                UserNotification userNotification = notifs.LastOrDefault();
-                // Get the toast binding, if present
-                NotificationBinding toastBinding = userNotification.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
+                // This means the user has granted access.
+                case UserNotificationListenerAccessStatus.Allowed:
 
-                if (toastBinding != null)
-                {
-                    // And then get the text elements from the toast binding
-                    IReadOnlyList<AdaptiveNotificationText> textElements = toastBinding.GetTextElements();
+                    // Get the toast notifications
+                    notifs = await listener.GetNotificationsAsync(NotificationKinds.Toast);
+                    Debug.WriteLine("Size of current notification buffer: " + notifs.Count());
 
-                    // Treat the first text element as the title text
-                    string titleText = textElements.FirstOrDefault()?.Text;
+                    SaveNotificationsToFile();
+                    break;
 
-                    // We'll treat all subsequent text elements as body text,
-                    // joining them together via newlines.
-                    string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
-                    notificationsText.Add(titleText + ": " + bodyText);
+                // This means the user has denied access.
+                // Any further calls to RequestAccessAsync will instantly
+                // return Denied. The user must go to the Windows settings
+                // and manually allow access.
+                case UserNotificationListenerAccessStatus.Denied:
+                    Debug.WriteLine("UserNotificationListenerAccessStatus.Denied");
+                    // Show UI explaining that listener features will not
+                    // work until user allows access.
+                    break;
 
-                }
-                try
-                {
-                    await FileIO.AppendLinesAsync(sampleFile, notificationsText);
-                    IList<string> contents = await Windows.Storage.FileIO.ReadLinesAsync(sampleFile);
-                    foreach (string notificationString in contents)
-                    {
-                        Debug.WriteLine(notificationString);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                }
-
+                // This means the user closed the prompt without
+                // selecting either allow or deny. Further calls to
+                // RequestAccessAsync will show the dialog again.
+                case UserNotificationListenerAccessStatus.Unspecified:
+                    Debug.WriteLine("UserNotificationListenerAccessStatus.Unspecified");
+                    // Show UI that allows the user to bring up the prompt again
+                    break;
             }
-
         }
         private async void StartListeningNotifications()
         {
-            
+            FileOpenPicker openPicker = new FileOpenPicker();
+            openPicker.FileTypeFilter.Add(".docx");
+            notificationFile = await openPicker.PickSingleFileAsync();
             BackgroundAccessStatus backgroundAccessStatus = await BackgroundExecutionManager.RequestAccessAsync();
-            switch(backgroundAccessStatus)
+            switch (backgroundAccessStatus)
             {
                 case BackgroundAccessStatus.AlwaysAllowed:
                 case BackgroundAccessStatus.AllowedSubjectToSystemPolicy:
@@ -251,46 +275,7 @@ namespace ac_notification_listener
                     break;
             }
 
-            
-        }
-        private async void SyncNotifications()
-        {
-            // Get the listener
-            UserNotificationListener listener = UserNotificationListener.Current;
 
-            // And request access to the user's notifications (must be called from UI thread)
-            UserNotificationListenerAccessStatus notificationListenerAccessStatus = await listener.RequestAccessAsync();
-            switch (notificationListenerAccessStatus)
-            {
-                // This means the user has granted access.
-                case UserNotificationListenerAccessStatus.Allowed:
-
-                    // Get the toast notifications
-                    notifs = await listener.GetNotificationsAsync(NotificationKinds.Toast);
-                    Debug.WriteLine("Size of current notification buffer: " + notifs.Count());
-
-                    saveNotificationsToFile();
-
-                    break;
-
-                // This means the user has denied access.
-                // Any further calls to RequestAccessAsync will instantly
-                // return Denied. The user must go to the Windows settings
-                // and manually allow access.
-                case UserNotificationListenerAccessStatus.Denied:
-                    Debug.WriteLine("UserNotificationListenerAccessStatus.Denied");
-                    // Show UI explaining that listener features will not
-                    // work until user allows access.
-                    break;
-
-                // This means the user closed the prompt without
-                // selecting either allow or deny. Further calls to
-                // RequestAccessAsync will show the dialog again.
-                case UserNotificationListenerAccessStatus.Unspecified:
-                    Debug.WriteLine("UserNotificationListenerAccessStatus.Unspecified");
-                    // Show UI that allows the user to bring up the prompt again
-                    break;
-            }
         }
     }
 }

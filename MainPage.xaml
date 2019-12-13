@@ -9,7 +9,8 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-        <Button Content="Notifications" Margin="925,754,0,0" VerticalAlignment="Top" Width="244" Height="92"/>
+        <TextBlock HorizontalAlignment="Left" Margin="158,201,0,0" Text="Welcome to AnyConnect Desktop Notification Listener" TextWrapping="Wrap" VerticalAlignment="Top" Width="1164" Height="260" FontSize="60" FontWeight="Medium"/>
+
 
     </Grid>
 </Page>
