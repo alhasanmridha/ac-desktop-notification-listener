@@ -1,22 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Background;
-using Windows.Foundation;
 using Windows.Foundation.Metadata;
 using Windows.Storage;
 using Windows.Storage.Pickers;
-using Windows.Storage.Streams;
-using Windows.System;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
-using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -71,7 +64,6 @@ namespace ac_notification_listener
                 {
 
                     IDictionary<string,string> dictionary = toastBinding.Hints;
-
 
                     // And then get the text elements from the toast binding
                     IReadOnlyList<AdaptiveNotificationText> textElements = toastBinding.GetTextElements();
