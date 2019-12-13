@@ -11,9 +11,12 @@ using Windows.ApplicationModel.Background;
 using Windows.Foundation;
 using Windows.Foundation.Metadata;
 using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.Storage.Streams;
+using Windows.System;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -30,6 +33,7 @@ namespace ac_notification_listener
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
+        IReadOnlyList<UserNotification> notifs;
         public App()
         {
             this.InitializeComponent();
@@ -86,8 +90,47 @@ namespace ac_notification_listener
                 // Ensure the current window is active
                 Window.Current.Activate();
             }
+           // openFilePicker();
+            
         }
 
+        private async void openFilePicker()
+        {
+
+            FileOpenPicker picker = new FileOpenPicker();
+            picker.FileTypeFilter.Add(".txt");
+            picker.SuggestedStartLocation = PickerLocationId.Desktop;
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                LaunchQuerySupportStatus status = await Launcher.QueryFileSupportAsync(file);
+
+                if (status == LaunchQuerySupportStatus.Available)
+                {
+                    bool didLaunch = await Launcher.LaunchFileAsync(file);
+                }
+                else
+                {
+                    MessageDialog dialog = new MessageDialog(
+                      $"Status value was {status}", "Unable to Launch");
+
+                    await dialog.ShowAsync();
+                }
+            }
+        }   
+        
+        private async void openFile(string fileToOpen)
+        {
+            var process = new Process();
+            process.StartInfo = new ProcessStartInfo()
+            {
+                UseShellExecute = true,
+                FileName = fileToOpen
+            };
+
+            process.Start();
+        }
         protected override void OnBackgroundActivated(BackgroundActivatedEventArgs args)
         {
             var deferral = args.TaskInstance.GetDeferral();
@@ -97,9 +140,7 @@ namespace ac_notification_listener
                 case "UserNotificationChanged":
                     // Call your own method to process the new/removed notifications
                     // The next section of documentation discusses this code
-                    Debug.WriteLine("UserNotification changed@@@@@@@@@@@@@@@@@@@################################");
-
-
+                    SyncNotifications();
                     break;
             }
 
@@ -129,15 +170,22 @@ namespace ac_notification_listener
             //TODO: Save application state and stop any background activity
             deferral.Complete();
         }
-        public async void saveNotificationsToFile(IReadOnlyList<UserNotification> notifs)
+        public async void saveNotificationsToFile()
         {
             List<string> notificationsText = new List<string>();
-
-            foreach (UserNotification notif in notifs)
+            // Create sample file; replace if exists.
+            StorageFolder storageFolder =
+                ApplicationData.Current.LocalFolder;
+            StorageFile sampleFile =
+                await storageFolder.CreateFileAsync("allNotifications.txt",
+                    CreationCollisionOption.OpenIfExists);
+        
+            Debug.WriteLine(sampleFile.Path);
+            if (notifs != null && notifs.Count() != 0)
             {
-
+                UserNotification userNotification = notifs.LastOrDefault();
                 // Get the toast binding, if present
-                NotificationBinding toastBinding = notif.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
+                NotificationBinding toastBinding = userNotification.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
 
                 if (toastBinding != null)
                 {
@@ -146,31 +194,33 @@ namespace ac_notification_listener
 
                     // Treat the first text element as the title text
                     string titleText = textElements.FirstOrDefault()?.Text;
-                  
+
                     // We'll treat all subsequent text elements as body text,
                     // joining them together via newlines.
                     string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
-                    notificationsText.Add(titleText+": "+bodyText);
+                    notificationsText.Add(titleText + ": " + bodyText);
 
+                }
+                try
+                {
+                    await FileIO.AppendLinesAsync(sampleFile, notificationsText);
+                    IList<string> contents = await Windows.Storage.FileIO.ReadLinesAsync(sampleFile);
+                    foreach (string notificationString in contents)
+                    {
+                        Debug.WriteLine(notificationString);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
                 }
 
             }
-            // Create sample file; replace if exists.
-            StorageFolder storageFolder =
-                ApplicationData.Current.LocalFolder;
-            StorageFile sampleFile =
-                await storageFolder.CreateFileAsync("allNotifications.txt",
-                    CreationCollisionOption.ReplaceExisting);
-            await FileIO.AppendLinesAsync(sampleFile, notificationsText);
-           
+
         }
         private async void StartListeningNotifications()
         {
-            // Get the listener
-            UserNotificationListener listener = UserNotificationListener.Current;
-
-            // And request access to the user's notifications (must be called from UI thread)
-            UserNotificationListenerAccessStatus notificationListenerAccessStatus = await listener.RequestAccessAsync();
+            
             BackgroundAccessStatus backgroundAccessStatus = await BackgroundExecutionManager.RequestAccessAsync();
             switch(backgroundAccessStatus)
             {
@@ -201,20 +251,25 @@ namespace ac_notification_listener
                     break;
             }
 
+            
+        }
+        private async void SyncNotifications()
+        {
+            // Get the listener
+            UserNotificationListener listener = UserNotificationListener.Current;
+
+            // And request access to the user's notifications (must be called from UI thread)
+            UserNotificationListenerAccessStatus notificationListenerAccessStatus = await listener.RequestAccessAsync();
             switch (notificationListenerAccessStatus)
             {
                 // This means the user has granted access.
                 case UserNotificationListenerAccessStatus.Allowed:
 
                     // Get the toast notifications
-                    IReadOnlyList<UserNotification> notifs = await listener.GetNotificationsAsync(NotificationKinds.Toast);
-                    Debug.WriteLine("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++UserNotificationListenerAccessStatus.Allowed: "+notifs.Count()+"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+                    notifs = await listener.GetNotificationsAsync(NotificationKinds.Toast);
+                    Debug.WriteLine("Size of current notification buffer: " + notifs.Count());
 
-                    saveNotificationsToFile(notifs);
-                    
-                    //Debug.WriteLine("Size of notifications: " + notifs.Count);
-                    //listener.ClearNotifications();
-                    //Debug.WriteLine("Size of notifications: " + notifs.Count);
+                    saveNotificationsToFile();
 
                     break;
 
@@ -237,43 +292,5 @@ namespace ac_notification_listener
                     break;
             }
         }
-        /*private async void SyncNotifications(UserNotificationListener listener)
-        {
-            // Get all the current notifications from the platform
-            IReadOnlyList<UserNotification> userNotifications = await listener.GetNotificationsAsync(NotificationKinds.Toast);
-
-            // Obtain the notifications that our wearable currently has displayed
-            IList<uint> wearableNotificationIds = GetNotificationsOnWearable();
-
-            // Copy the currently displayed into a list of notification ID's to be removed
-            var toBeRemoved = new List<uint>(wearableNotificationIds);
-
-            // For each notification in the platform
-            foreach (UserNotification userNotification in userNotifications)
-            {
-                // If we've already displayed this notification
-                if (wearableNotificationIds.Contains(userNotification.Id))
-                {
-                    // We want to KEEP it displayed, so take it out of the list
-                    // of notifications to remove.
-                    toBeRemoved.Remove(userNotification.Id);
-                }
-
-                // Otherwise it's a new notification
-                else
-                {
-                    // Display it on the Wearable
-                    SendNotificationToWearable(userNotification);
-                }
-            }
-
-            // Now our toBeRemoved list only contains notification ID's that no longer exist in the platform.
-            // So we will remove all those notifications from the wearable.
-            foreach (uint id in toBeRemoved)
-            {
-                RemoveNotificationFromWearable(id);
-            }
-        }*/
     }
-
 }
