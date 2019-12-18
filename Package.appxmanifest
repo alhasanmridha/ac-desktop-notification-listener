@@ -11,7 +11,7 @@
   <Identity
     Name="2a555798-ad1b-4fcc-a499-9fbf139835d1"
     Publisher="CN=Anyconnect"
-    Version="1.0.0.0" />
+    Version="1.0.1.0" />
 
   <mp:PhoneIdentity PhoneProductId="2a555798-ad1b-4fcc-a499-9fbf139835d1" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 

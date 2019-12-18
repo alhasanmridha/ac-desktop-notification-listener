@@ -19,6 +19,9 @@ namespace ac_notification_listener
     /// <summary>
     /// Provides application-specific behavior to supplement the default Application class.
     /// </summary>
+    ///         
+    [DebuggerDisplay("{DebuggerDisplay(), nq}")]
+
     sealed partial class App : Application
     {
 
@@ -26,6 +29,7 @@ namespace ac_notification_listener
         /// Initializes the singleton application object.  This is the first line of authored code
         /// executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
+        /// 
         IReadOnlyList<UserNotification> notifs;
         StorageFile notificationFile;
         public App()
@@ -52,7 +56,9 @@ namespace ac_notification_listener
             {
                 UserNotification userNotification = notifs.LastOrDefault();
 
+                Debug.WriteLine("Start");
                 string appDisplayName = userNotification.AppInfo.DisplayInfo.DisplayName;
+                Debug.WriteLine(appDisplayName);
                 var time = userNotification.CreationTime.DateTime;
 
 
@@ -60,27 +66,28 @@ namespace ac_notification_listener
                 //var t = userNotification.AppInfo.DisplayInfo.Description;
                 // Get the toast binding, if present
                 NotificationBinding toastBinding = userNotification.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
-                if (toastBinding != null && appDisplayName.Contains("Google Chrome"))
-                {
+                //if (toastBinding != null && appDisplayName.Contains("Google Chrome"))
+                //{
 
                     IDictionary<string,string> dictionary = toastBinding.Hints;
 
                     // And then get the text elements from the toast binding
                     IReadOnlyList<AdaptiveNotificationText> textElements = toastBinding.GetTextElements();
-
                     // Treat the first text element as the title text
-                    string titleText = textElements.FirstOrDefault()?.Text;
+                foreach(AdaptiveNotificationText s in textElements)
+                {
+                    Debug.WriteLine(s.Text);
+                }
+                Debug.WriteLine("END");
+                string titleText = textElements.FirstOrDefault()?.Text;
+                        
 
                     // We'll treat all subsequent text elements as body text,
                     // joining them together via newlines.
-                    string bodyText = string.Join("\n", textElements.Skip(1).Select(t => t.Text));
-                    notificationsInText.Add(time.ToString() + ": "+ bodyText);
-                    notificationsInText.Add("");
-                    notificationsInText.Add("");
-                    notificationsInText.Add("----------------------------------------------------------------");
-                    notificationsInText.Add("");
-                    notificationsInText.Add("");
-                }
+                string bodyText = string.Join(",", textElements.Select(t => t.Text));
+                string outstr = time.ToString() + ", " + appDisplayName + ", " + bodyText;
+                notificationsInText.Add(outstr);
+                //}
                 if (notificationFile != null)
                 {
                     // Application now has read/write access to the picked file.
@@ -207,8 +214,13 @@ namespace ac_notification_listener
                 case UserNotificationListenerAccessStatus.Allowed:
 
                     // Get the toast notifications
+                    
                     notifs = await listener.GetNotificationsAsync(NotificationKinds.Toast);
                     Debug.WriteLine("Size of current notification buffer: " + notifs.Count());
+                    if(notifs.Count() > 0)
+                    {
+                        var userNotification = notifs[0];
+                    }
 
                     SaveNotificationsToFile();
                     break;
@@ -235,7 +247,7 @@ namespace ac_notification_listener
         private async void StartListeningNotifications()
         {
             FileOpenPicker openPicker = new FileOpenPicker();
-            openPicker.FileTypeFilter.Add(".docx");
+            openPicker.FileTypeFilter.Add(".csv");
             notificationFile = await openPicker.PickSingleFileAsync();
             BackgroundAccessStatus backgroundAccessStatus = await BackgroundExecutionManager.RequestAccessAsync();
             switch (backgroundAccessStatus)
