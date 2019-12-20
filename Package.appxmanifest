@@ -6,7 +6,8 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:iot="http://schemas.microsoft.com/appx/manifest/iot/windows10"
-  IgnorableNamespaces="uap mp uap3 iot">
+  xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+  IgnorableNamespaces="uap mp uap3 iot uap4">
 
   <Identity
     Name="2a555798-ad1b-4fcc-a499-9fbf139835d1"
@@ -42,11 +43,22 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="csv">
+            <uap:DisplayName>List of Records</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.csv</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
 
   <Capabilities>
     <Capability Name="internetClient" />
     <uap3:Capability Name="userNotificationListener"/>
+    <uap:Capability Name="documentsLibrary"/>
   </Capabilities>
 </Package>
