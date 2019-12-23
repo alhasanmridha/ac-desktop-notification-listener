@@ -38,7 +38,7 @@ namespace ac_notification_listener_helper
                     try
                     {
                         retryAttempts--;
-                        await FileIO.AppendTextAsync(storageFile, record);
+                        await FileIO.WriteTextAsync(storageFile, record);
                         break;
                     }
                     catch (Exception ex) when ((ex.HResult == ERROR_ACCESS_DENIED) ||
@@ -60,6 +60,14 @@ namespace ac_notification_listener_helper
             Int32 retryAttempts = 5;
             const Int32 ERROR_ACCESS_DENIED = unchecked((Int32)0x80070005);
             const Int32 ERROR_SHARING_VIOLATION = unchecked((Int32)0x80070020);
+            try
+            {
+                if (record.Last() != '\n') record += "\n";
+            }
+            catch (Exception)
+            {
+                Debug.WriteLine("Record is invalid");
+            }
             if (storageFile != null)
             {
                 // Application now has read/write access to the picked file.
@@ -132,8 +140,18 @@ namespace ac_notification_listener_helper
             Debug.WriteLine("AppName " + appDispalyName);
             Debug.WriteLine("Title " + titleText);
             Debug.WriteLine("Body " + bodyText);
-            return appDispalyName.Contains(appNameText) &&
-                bodyText.Contains(contentFilterText);
+            bool result = false;
+            try
+            {
+                result = appDispalyName.ToLower().Contains(appNameText.ToLower());
+                String tempContents = bodyText.ToLower() + titleText.ToLower();
+                result = result &&  tempContents.Contains(contentFilterText.ToLower());
+            }
+            catch (Exception)
+            {
+
+            }
+            return result;
         }
 
         public static void ShowTileNotification()

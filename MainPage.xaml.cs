@@ -10,6 +10,7 @@ using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.UI.Popups;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -33,6 +34,7 @@ namespace ac_notification_listener
         TextBlock filterText;
         TextBox inputFilter;
         TextBox inputAppName;
+        Button requestButton;
 
 
         public MainPage()
@@ -46,6 +48,7 @@ namespace ac_notification_listener
             filterText = (TextBlock)this.FindName("FilterText");
             inputFilter = (TextBox)this.FindName("InputFilter");
             inputAppName = (TextBox)this.FindName("InputAppName");
+            requestButton = (Button)this.FindName("ButtonRequest");
             setRecordFile();
             FillContents();
         }
@@ -130,12 +133,12 @@ namespace ac_notification_listener
         const string cacheFileFilterName = @"filter.txt";
         private async void FillContents()
         {
-            // read from file
 
             // write to file
 
             StorageFolder cacheFolder = await StorageFolder.GetFolderFromPathAsync(ApplicationData.Current.LocalFolder.Path);
 
+            // read from file
             StorageFile pathStorageFile;
             try
             {
@@ -160,8 +163,7 @@ namespace ac_notification_listener
                 Debug.WriteLine("File Not Found " + cacheFileFilterName);
                 pathStorageFile = await cacheFolder.CreateFileAsync(cacheFileFilterName);
             }
-            AcHelper.WriteToFileWithoutAppend(pathStorageFile, appNameText.Text);
-            AcHelper.contentFilterText = filterText.Text = InputFilter.Text = await Windows.Storage.FileIO.ReadTextAsync(pathStorageFile);
+            AcHelper.contentFilterText = filterText.Text = inputFilter.Text = await Windows.Storage.FileIO.ReadTextAsync(pathStorageFile);
         }
 
         private async void UpdateContents(object sender, RoutedEventArgs e)
@@ -199,7 +201,38 @@ namespace ac_notification_listener
                 Debug.WriteLine("File Not Found " + cacheFileFilterName);
                 pathStorageFile = await cacheFolder.CreateFileAsync(cacheFileFilterName);
             }
-            AcHelper.WriteToFileWithoutAppend(pathStorageFile, appNameText.Text);
+            AcHelper.WriteToFileWithoutAppend(pathStorageFile, filterText.Text);
+        }
+
+        async private void requestButton_Click(object sender, RoutedEventArgs e)
+        {
+            StartupTask startupTask = await StartupTask.GetAsync("task-start-up-ac-notification");
+            switch (startupTask.State)
+            {
+                case StartupTaskState.Disabled:
+                    // Task is disabled but can be enabled.
+                    StartupTaskState newState = await startupTask.RequestEnableAsync();
+                    Debug.WriteLine("Request to enable startup, result = {0}", newState);
+                    break;
+                case StartupTaskState.DisabledByUser:
+                    // Task is disabled and user must enable it manually.
+                    MessageDialog dialog = new MessageDialog(
+                        "I know you don't want this app to run " +
+                        "as soon as you sign in, but if you change your mind, " +
+                        "you can enable this in the Startup tab in Task Manager.",
+                        "TestStartup");
+                    await dialog.ShowAsync();
+                    break;
+                case StartupTaskState.DisabledByPolicy:
+                    Debug.WriteLine(
+                        "Startup disabled by group policy, or not supported on this device");
+                    break;
+                case StartupTaskState.Enabled:
+                    MessageDialog dialog1 = new MessageDialog("Enabled the program to run on startup.");
+                    await dialog1.ShowAsync();
+                    Debug.WriteLine("Startup is enabled.");
+                    break;
+            }
         }
     }
 }

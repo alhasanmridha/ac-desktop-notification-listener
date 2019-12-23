@@ -131,9 +131,29 @@ namespace ac_notification_listener
         /// <param name="e">Details about the suspend request.</param>
         private void OnSuspending(object sender, SuspendingEventArgs e)
         {
-            var deferral = e.SuspendingOperation.GetDeferral();
+            //var deferral = e.SuspendingOperation.GetDeferral();
             //TODO: Save application state and stop any background activity
-            deferral.Complete();
+            //deferral.Complete();
+        }
+
+        protected override void OnActivated(IActivatedEventArgs args)
+        {
+            Frame rootFrame = Window.Current.Content as Frame;
+            if (rootFrame == null)
+            {
+                rootFrame = new Frame();
+                Window.Current.Content = rootFrame;
+            }
+
+            string payload = string.Empty;
+            if (args.Kind == ActivationKind.StartupTask)
+            {
+                var startupArgs = args as StartupTaskActivatedEventArgs;
+                payload = ActivationKind.StartupTask.ToString();
+            }
+
+            rootFrame.Navigate(typeof(MainPage), payload);
+            Window.Current.Activate();
         }
 
         private async void SyncNotifications()
@@ -175,6 +195,7 @@ namespace ac_notification_listener
 
         private async void RegisterListeningNotifications()
         {
+            AcHelper.ShowTileNotification();
             BackgroundAccessStatus backgroundAccessStatus = await BackgroundExecutionManager.RequestAccessAsync();
             switch (backgroundAccessStatus)
             {
@@ -194,7 +215,6 @@ namespace ac_notification_listener
 
                         // Register the task
                         builder.Register();
-                        AcHelper.ShowTileNotification();
                     }
                     break;
                 case BackgroundAccessStatus.DeniedBySystemPolicy:

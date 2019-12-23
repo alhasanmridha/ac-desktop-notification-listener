@@ -7,6 +7,9 @@
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:iot="http://schemas.microsoft.com/appx/manifest/iot/windows10"
   xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+
   IgnorableNamespaces="uap mp uap3 iot uap4">
 
   <Identity
@@ -52,6 +55,15 @@
             </uap:SupportedFileTypes>
           </uap:FileTypeAssociation>
         </uap:Extension>
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="$targetnametoken$.exe"
+          EntryPoint="ac_notification_listener.App">
+          <desktop:StartupTask
+              TaskId="task-start-up-ac-notification"
+              Enabled="true"
+              DisplayName="Notification-listener"/>
+        </desktop:Extension>
       </Extensions>
     </Application>
   </Applications>
@@ -60,5 +72,6 @@
     <Capability Name="internetClient" />
     <uap3:Capability Name="userNotificationListener"/>
     <uap:Capability Name="documentsLibrary"/>
+
   </Capabilities>
 </Package>
